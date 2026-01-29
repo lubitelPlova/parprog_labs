@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     char *output_name;
     if (argc == 1)
     {
-        printf("Usage: %s [INPUT_IMAGE_NAME] [OUTPUT_IMAGE_NAME]\nNote that input and output must be jpg or png", argv[0]);
+        printf("Usage: %s [INPUT_IMAGE_NAME] [OUTPUT_IMAGE_NAME]\nNote that input and output must be jpg or png\n", argv[0]);
         return 0;
     }
     else if (argc == 3)
@@ -32,12 +32,12 @@ int main(int argc, char *argv[])
 
     if (!has_extension(input_name, ".jpg") && !has_extension(input_name, ".png"))
     {
-        printf("Input pic should be in png or jpg");
+        printf("Input pic should be in png or jpg\n");
         return 1;
     }
     if (!has_extension(output_name, ".jpg"))
     {
-        printf("Output pic should be in png");
+        printf("Output pic should be in png\n");
         return 1;
     }
 
@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
 
     if (relief_by_channel(img, width, height, channels) != 0)
     {
-        fprintf(stderr, "Relief error");
+        fprintf(stderr, "Relief error\n");
         return -1;
     }
     int out_width, out_height;
