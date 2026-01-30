@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
         printf("Input pic should be in png or jpg\n");
         return 1;
     }
-    if (!has_extension(output_name, ".jpg"))
+    if (!has_extension(output_name, ".png"))
     {
         printf("Output pic should be in png\n");
         return 1;
@@ -67,7 +67,10 @@ int main(int argc, char *argv[])
     }
 
     stbi_write_png(output_name, out_width, out_height, channels, out_img, out_width * channels);
+    // stbi_write_png(output_name, width, height, channels, img, width * channels);
+
 
     stbi_image_free(img);
+    free(out_img);
     return 0;
 }
