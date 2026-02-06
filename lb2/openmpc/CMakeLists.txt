@@ -12,4 +12,10 @@ add_executable(image_processor ${SOURCES})
 
 target_link_libraries(image_processor PRIVATE
     OpenMP::OpenMP_C
-    m)
+    m
+)
+
+target_compile_options(image_processor PRIVATE
+    -g
+    -fopenmp
+)

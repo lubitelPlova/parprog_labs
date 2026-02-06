@@ -19,7 +19,35 @@ int has_extension(const char *filename, const char *ext)
     return strcmp(dot, ext) == 0;
 }
 
-int relief_parallel_by_row(unsigned char *img, const int width, const int height, const int channels)
+char *construct_output_name(const char *input_name) {
+    char *output_name;
+    char *tmp; 
+    
+
+    output_name = malloc(strlen(input_name) + 8 + 1);
+    tmp = malloc(strlen(input_name));
+    
+    if (output_name == NULL) {
+        return NULL; 
+    }
+    
+
+    char *dot = strrchr(input_name, '.');
+    
+    if (dot != NULL) {
+
+        strncpy(tmp, input_name, dot - input_name);
+        tmp[dot - input_name] = '\0';
+        
+        sprintf(output_name, "out_%s.png", tmp);
+    } else {
+        sprintf(output_name, "out_%s.png", input_name);
+    }
+    
+    return output_name;
+}
+
+int relief_parallel_row(unsigned char *img, const int width, const int height, const int channels)
 {
     const int total_size = width * height * channels;
     const int row_stride = width * channels;
@@ -80,7 +108,7 @@ int relief_parallel_by_row(unsigned char *img, const int width, const int height
     return 0;
 }
 
-unsigned char *resize_2lower(unsigned char *img, const int width, const int height, const int channels,
+unsigned char *resize_2lower_row(unsigned char *img, const int width, const int height, const int channels,
                              int *out_width, int *out_height)
 {
     *out_width = width / 2;
@@ -121,6 +149,144 @@ unsigned char *resize_2lower(unsigned char *img, const int width, const int heig
                               in_row2[idx1 + channel] +
                               in_row2[idx2 + channel];
                 out_row[x * channels + channel] = (unsigned char)(avg_pix >> 2);
+            }
+        }
+    }
+    return out_img;
+}
+
+
+int relief_parallel_tiling(unsigned char *img, const int width, const int height, const int channels)
+{
+    const int total_size = width * height * channels;
+    const int row_stride = width * channels;
+
+    unsigned char *out_img = (unsigned char *)aligned_alloc(64, total_size);
+    if (!out_img)
+    {
+        fprintf(stderr, "Memory allocation failed\n");
+        return -1;
+    }
+    memcpy(out_img, img, total_size);
+
+    const int k00 = -2, k01 = -1, k02 = 0;
+    const int k10 = -1, k11 = 1, k12 = 1;
+    const int k20 = 0, k21 = 1, k22 = 2;
+
+    const int tile_width = 64;  
+    const int tile_height = 64; 
+
+    #pragma omp parallel for schedule(static) collapse(2)
+    for (int tile_y = 1; tile_y < height - 1; tile_y += tile_height)
+    {
+        for (int tile_x = 1; tile_x < width - 1; tile_x += tile_width)
+        {
+            int y_start = tile_y;
+            int y_end = (tile_y + tile_height < height - 1) ? tile_y + tile_height : height - 1;
+            int x_start = tile_x;
+            int x_end = (tile_x + tile_width < width - 1) ? tile_x + tile_width : width - 1;
+
+            for (int y = y_start; y < y_end; y++)
+            {
+                unsigned char *prev_row = img + (y - 1) * row_stride;
+                unsigned char *cur_row = img + y * row_stride;
+                unsigned char *next_row = img + (y + 1) * row_stride;
+                unsigned char *out_row = out_img + y * row_stride;
+
+                for (int x = x_start; x < x_end; x++)
+                {
+                    const int base_idx = x * channels;
+                    const int prev_idx = base_idx - channels;
+                    const int next_idx = base_idx + channels;
+
+                    for (int channel = 0; channel < channels; channel++)
+                    {
+                        int sum_of_pix = 0;
+
+                        sum_of_pix += prev_row[prev_idx + channel] * k00;
+                        sum_of_pix += prev_row[base_idx + channel] * k01;
+                        sum_of_pix += prev_row[next_idx + channel] * k02;
+
+                        sum_of_pix += cur_row[prev_idx + channel] * k10;
+                        sum_of_pix += cur_row[base_idx + channel] * k11;
+                        sum_of_pix += cur_row[next_idx + channel] * k12;
+
+                        sum_of_pix += next_row[prev_idx + channel] * k20;
+                        sum_of_pix += next_row[base_idx + channel] * k21;
+                        sum_of_pix += next_row[next_idx + channel] * k22;
+
+                        if (sum_of_pix < 0)
+                            sum_of_pix = 0;
+                        else if (sum_of_pix > 255)
+                            sum_of_pix = 255;
+
+                        out_row[base_idx + channel] = (unsigned char)sum_of_pix;
+                    }
+                }
+            }
+        }
+    }
+    
+    memcpy(img, out_img, total_size);
+    free(out_img);
+    return 0;
+}
+
+unsigned char *resize_2lower_tiling(unsigned char *img, const int width, const int height, const int channels,
+                             int *out_width, int *out_height)
+{
+    *out_width = width / 2;
+    *out_height = height / 2;
+
+    const int total_size = (*out_width) * (*out_height) * channels;
+
+    const int in_row_stride = width * channels;
+    const int out_row_stride = (*out_width) * channels;
+
+    unsigned char *out_img = (unsigned char *)aligned_alloc(64, total_size);
+    if (!out_img)
+    {
+        fprintf(stderr, "Memory allocation failed\n");
+        return NULL;
+    }
+    
+    const int tile_width = 64;   
+    const int tile_height = 64;  
+    
+    #pragma omp parallel for schedule(static) collapse(2)
+    for (int tile_y = 0; tile_y < (*out_height); tile_y += tile_height)
+    {
+        for (int tile_x = 0; tile_x < (*out_width); tile_x += tile_width)
+        {
+            int y_start = tile_y;
+            int y_end = (tile_y + tile_height < (*out_height)) ? tile_y + tile_height : (*out_height);
+            int x_start = tile_x;
+            int x_end = (tile_x + tile_width < (*out_width)) ? tile_x + tile_width : (*out_width);
+                    // Если нет расширения, просто добавляем префикс
+            for (int y = y_start; y < y_end; ++y)
+            {
+                const int in_y1 = 2 * y;
+                const int in_y2 = in_y1 + 1;
+
+                const unsigned char *in_row1 = img + in_y1 * in_row_stride;
+                const unsigned char *in_row2 = img + in_y2 * in_row_stride;
+
+                unsigned char *out_row = out_img + y * out_row_stride;
+
+                for (int x = x_start; x < x_end; ++x)
+                {
+                    const int idx1 = 2 * x * channels;
+                    const int idx2 = (2 * x + 1) * channels;
+
+                    for (int channel = 0; channel < channels; ++channel)
+                    {
+                        int avg_pix = in_row1[idx1 + channel] +
+                                      in_row1[idx2 + channel] +
+                                      in_row2[idx1 + channel] +
+                                      in_row2[idx2 + channel];
+                        out_row[x * channels + channel] = (unsigned char)(avg_pix >> 2);
+                    }
+                }
             }
         }
     }
