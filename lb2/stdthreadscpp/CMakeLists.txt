@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(OpenCV REQUIRED)
+find_package(Threads REQUIRED)
 
 file(GLOB SOURCES "src/*.cpp")
 
@@ -15,5 +16,8 @@ target_include_directories(bin_eroder PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(bin_eroder PRIVATE ${OpenCV_LIBS})
+target_link_libraries(bin_eroder PRIVATE 
+    ${OpenCV_LIBS}
+    Threads::Threads
+)
 
