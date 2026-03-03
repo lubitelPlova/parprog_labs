@@ -15,5 +15,8 @@ target_link_libraries(image_processor PRIVATE
     OpenCL::OpenCL
 )
 
-# target_compile_options(image_processor PRIVATE
-# )
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/kernel/conv_resize.cl
+    ${CMAKE_CURRENT_BINARY_DIR}/conv_resize.cl
+    COPYONLY
+)
