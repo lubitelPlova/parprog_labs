@@ -9,7 +9,7 @@ __kernel void emboss_filter(__global const uchar* input,
 
     if (x >= width || y >= height) return;
 
-    const int kernel[9] = {
+    const int convkernel[9] = {
         -2, -1,  0,
         -1,  1,  1,
          0,  1,  2
@@ -27,11 +27,10 @@ __kernel void emboss_filter(__global const uchar* input,
                 if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
                     int idx = (ny * width + nx) * channels + c;
                     int k_idx = (ky + 1) * 3 + (kx + 1);
-                    sum += input[idx] * kernel[k_idx];
+                    sum += input[idx] * convkernel[k_idx];
                 }
             }
         }
-        sum += 128.0f; // Смещение для яркости
         result[c] = fmax(0.0f, fmin(255.0f, sum));
     }
 
