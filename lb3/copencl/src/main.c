@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
     err = clGetPlatformIDs(1, &platform, NULL);
     if (err != CL_SUCCESS)
     {
-        fprintf(stderr, "clGetPlatformIDs\n");
+        fprintf(stderr, "clGetPlatformIDs: %d\n", err);
         free_image(input_img);
         return -1;
     }
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, NULL);
     if (err != CL_SUCCESS)
     {
-        fprintf(stderr, "clGetDeviceIDs\n");
+        fprintf(stderr, "clGetDeviceIDs: %d\n", err);
         free_image(input_img);
         return -1;
     }
@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    kernel = clCreateKernel(program, "emboss_filter", &err);
+    kernel = clCreateKernel(program, "relief_filter", &err);
     if (err != CL_SUCCESS)
     {
         fprintf(stderr, "clCreateKernel\n");
@@ -169,8 +169,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    unsigned char *output_data = malloc(image_size);
-    err = clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, 0, image_size, output_data, 0, NULL, NULL);
+    err = clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, 0, image_size, input_img->data, 0, NULL, NULL);
     if (err != CL_SUCCESS)
     {
         fprintf(stderr, "clEnqueueReadBuffer\n");
@@ -178,15 +177,77 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    
     image_t *output_img = malloc(sizeof(image_t));
-    output_img->data = output_data;
-    output_img->width = input_img->width;
-    output_img->height = input_img->height;
+    
+    output_img->width = input_img->width/2;
+    output_img->height = input_img->height/2;
     output_img->channels = input_img->channels;
+    size_t image_size_out = output_img->width * output_img->height * output_img->channels;
+    output_img->data = malloc(image_size_out);
 
-    free_image(input_img);
+    kernel = clCreateKernel(program, "resize_twice_low", &err);
+    if (err != CL_SUCCESS)
+    {
+        fprintf(stderr, "clCreateKernel\n");
+        free_image(output_img);
+        return -1;
+    }
+
+    
+    input_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+                                         image_size, input_img->data, &err);
+    output_buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, image_size_out, NULL, &err);
+    if (err != CL_SUCCESS)
+    {
+        fprintf(stderr, "clCreateBuffer\n");
+        free_image(output_img);
+        return -1;
+    }
+
+    err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &input_buffer);
+    err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &output_buffer);
+    err |= clSetKernelArg(kernel, 2, sizeof(cl_int), &input_img->width);
+    err |= clSetKernelArg(kernel, 3, sizeof(cl_int), &input_img->height);
+    err |= clSetKernelArg(kernel, 4, sizeof(cl_int), &input_img->channels);
+    if (err != CL_SUCCESS)
+    {
+        fprintf(stderr, "clSetKernelArg\n");
+        free_image(output_img);
+        return -1;
+    }
+
+
+    size_t local_size_resize[2] = {16, 16};
+    size_t global_size_resize[2] = {
+        ((output_img->width + local_size[0] - 1) / local_size[0]) * local_size[0],
+        ((output_img->height + local_size[1] - 1) / local_size[1]) * local_size[1]};
+
+    err = clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_size_resize, local_size_resize, 0, NULL, NULL);
+    if (err != CL_SUCCESS)
+    {
+        fprintf(stderr, "clEnqueueNDRangeKernel\n");
+        free_image(output_img);
+        return -1;
+    }
+
+    err = clFinish(queue);
+    if (err != CL_SUCCESS)
+    {
+        fprintf(stderr, "clFinish\n");
+        free_image(output_img);
+        return -1;
+    }
+
+    err = clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, 0, image_size_out, output_img->data, 0, NULL, NULL);
+    if (err != CL_SUCCESS)
+    {
+        fprintf(stderr, "clEnqueueReadBuffer\n");
+        free_image(output_img);
+        return -1;
+    }
 
     save_img(output_img, output_name);
-
+    free_image(output_img);
     return 0;
 }

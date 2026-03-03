@@ -1,40 +1,50 @@
-__kernel void emboss_filter(__global const uchar* input,
-                            __global uchar* output,
-                            const int width,
-                            const int height,
-                            const int channels)
-{
-    int x = get_global_id(0);
-    int y = get_global_id(1);
+__kernel void relief_filter(__global const uchar *input, __global uchar *output,
+                            const int width, const int height,
+                            const int channels) {
+  int x = get_global_id(0);
+  int y = get_global_id(1);
 
-    if (x >= width || y >= height) return;
+  if (x < 1 || x >= (width - 1) || y < 1 || y >= (height - 1))
+    return;
 
-    const int convkernel[9] = {
-        -2, -1,  0,
-        -1,  1,  1,
-         0,  1,  2
-    };
+  const int convkernel[9] = {-2, -1, 0, -1, 1, 1, 0, 1, 2};
 
-    int base_idx = (y * width + x) * channels;
-    float result[4] = {0, 0, 0, 0};
+  int base_idx = (y * width + x) * channels;
+  float result[3] = {0, 0, 0};
 
-    for (int c = 0; c < channels; c++) {
-        float sum = 0.0f;
-        for (int ky = -1; ky <= 1; ky++) {
-            for (int kx = -1; kx <= 1; kx++) {
-                int nx = x + kx;
-                int ny = y + ky;
-                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                    int idx = (ny * width + nx) * channels + c;
-                    int k_idx = (ky + 1) * 3 + (kx + 1);
-                    sum += input[idx] * convkernel[k_idx];
-                }
-            }
-        }
-        result[c] = fmax(0.0f, fmin(255.0f, sum));
-    }
+  for (int c = 0; c < channels; c++) {
 
-    for (int c = 0; c < channels; c++) {
-        output[base_idx + c] = (uchar)result[c];
-    }
+    float sum =
+        input[((y - 1) * width + (x - 1)) * channels + c] * convkernel[0];
+    sum += input[((y - 1) * width + (x)) * channels + c] * convkernel[1];
+    sum += input[((y - 1) * width + (x + 1)) * channels + c] * convkernel[2];
+    sum += input[((y)*width + (x - 1)) * channels + c] * convkernel[3];
+    sum += input[(base_idx + c] * convkernel[4];
+    sum += input[((y)*width + (x + 1)) * channels + c] * convkernel[5];
+    sum += input[((y + 1) * width + (x - 1)) * channels + c] * convkernel[6];
+    sum += input[((y + 1) * width + (x)) * channels + c] * convkernel[7];
+    sum += input[((y + 1) * width + (x + 1)) * channels + c] * convkernel[8];
+
+    result[c] = fmax(0.0f, fmin(255.0f, sum));
+  }
+
+  for (int c = 0; c < channels; c++) {
+    output[base_idx + c] = (uchar)result[c];
+  }
+}
+
+__kernel void resize_twice_low(__global const uchar *input,
+                               __global uchar output, const int width,
+                               const int height, const int channels) {
+  int x = get_global_id(0);
+  int y = get_global_id(1);
+  int base_idx = (y * width + x) * channels;
+  for (int c = 0; c < channels; c++) {
+    int sum = input[(y * width + x) * channels + c];
+    sum += input[(y * width + (x+1)) * channels + c];
+    sum += input[((y+1) * width + (x)) * channels + c];
+    sum += input[((y+1) * width + (x+1)) * channels + c];
+    output[base_idx] = sum / 4;
+
+  }
 }
