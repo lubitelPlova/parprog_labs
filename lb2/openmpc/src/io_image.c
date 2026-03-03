@@ -262,7 +262,6 @@ unsigned char *resize_2lower_tiling(unsigned char *img, const int width, const i
             int y_end = (tile_y + tile_height < (*out_height)) ? tile_y + tile_height : (*out_height);
             int x_start = tile_x;
             int x_end = (tile_x + tile_width < (*out_width)) ? tile_x + tile_width : (*out_width);
-                    // Если нет расширения, просто добавляем префикс
             for (int y = y_start; y < y_end; ++y)
             {
                 const int in_y1 = 2 * y;

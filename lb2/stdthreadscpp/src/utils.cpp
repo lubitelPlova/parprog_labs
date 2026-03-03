@@ -115,7 +115,7 @@ cv::Mat erode(cv::Mat &img, const int num_threads)
     for (int i = 0; i < num_threads; i++)
     {
         int start = i * rows_per_thread + 1;
-        int end = (i == num_threads - 1) ? img.rows - 1 : start + rows_per_thread - 1;
+        int end = (i == num_threads - 1) ? img.rows - 1 : start + rows_per_thread;
         threads.emplace_back([&img, &eroded, start, end]() {
             erode_rows(img, eroded, start, end);
         });
