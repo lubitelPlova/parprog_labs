@@ -147,7 +147,6 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    // size_t global_size[2] = { input_img->width, input_img->width };
     size_t local_size[2] = {16, 16};
     size_t global_size[2] = {
         ((input_img->width + local_size[0] - 1) / local_size[0]) * local_size[0],
@@ -177,11 +176,10 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    
     image_t *output_img = malloc(sizeof(image_t));
-    
-    output_img->width = input_img->width/2;
-    output_img->height = input_img->height/2;
+
+    output_img->width = input_img->width / 2;
+    output_img->height = input_img->height / 2;
     output_img->channels = input_img->channels;
     size_t image_size_out = output_img->width * output_img->height * output_img->channels;
     output_img->data = malloc(image_size_out);
@@ -194,9 +192,8 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    
     input_buffer = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                         image_size, input_img->data, &err);
+                                  image_size, input_img->data, &err);
     output_buffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, image_size_out, NULL, &err);
     if (err != CL_SUCCESS)
     {
@@ -216,7 +213,6 @@ int main(int argc, char *argv[])
         free_image(output_img);
         return -1;
     }
-
 
     size_t local_size_resize[2] = {16, 16};
     size_t global_size_resize[2] = {
