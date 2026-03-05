@@ -19,7 +19,7 @@ __kernel void relief_filter(__global const uchar *input, __global uchar *output,
     sum += input[((y - 1) * width + (x)) * channels + c] * convkernel[1];
     sum += input[((y - 1) * width + (x + 1)) * channels + c] * convkernel[2];
     sum += input[((y)*width + (x - 1)) * channels + c] * convkernel[3];
-    sum += input[(base_idx + c] * convkernel[4];
+    sum += input[(base_idx + c)] * convkernel[4];
     sum += input[((y)*width + (x + 1)) * channels + c] * convkernel[5];
     sum += input[((y + 1) * width + (x - 1)) * channels + c] * convkernel[6];
     sum += input[((y + 1) * width + (x)) * channels + c] * convkernel[7];
@@ -34,17 +34,18 @@ __kernel void relief_filter(__global const uchar *input, __global uchar *output,
 }
 
 __kernel void resize_twice_low(__global const uchar *input,
-                               __global uchar output, const int width,
+                               __global uchar *output, const int width,
                                const int height, const int channels) {
   int x = get_global_id(0);
   int y = get_global_id(1);
-  int base_idx = (y * width + x) * channels;
+  if (x > width/2 || y > height/2) return;
+  int base_idx = (y * (width/2) + x) * channels;
   for (int c = 0; c < channels; c++) {
-    int sum = input[(y * width + x) * channels + c];
-    sum += input[(y * width + (x+1)) * channels + c];
-    sum += input[((y+1) * width + (x)) * channels + c];
-    sum += input[((y+1) * width + (x+1)) * channels + c];
-    output[base_idx] = sum / 4;
+    int sum = input[(2*y * width + 2*x) * channels + c];
+    sum += input[(2*y * width + (2*x+1)) * channels + c];
+    sum += input[((2*y+1) * width + (2*x)) * channels + c];
+    sum += input[((2*y+1) * width + (2*x+1)) * channels + c];
+    output[base_idx+c] = sum / 4;
 
   }
 }

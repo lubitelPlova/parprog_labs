@@ -10,9 +10,6 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
-
 int has_extension(const char *filename, const char *ext)
 {
     const char *dot = strchr(filename, '.');
@@ -52,7 +49,7 @@ char *construct_output_name(const char *input_name)
     {
         sprintf(output_name, "out_%s.png", input_name);
     }
-
+    free(tmp);
     return output_name;
 }
 
@@ -112,4 +109,60 @@ char* load_kernel_source(const char* filename, size_t* size) {
     source[*size] = '\0';
     fclose(file);
     return source;
+}
+
+cl_context_t* create_cl_context(){
+    cl_context_t *new_context = malloc(sizeof(cl_context_t));
+    if (!new_context)
+    {
+        fprintf(stderr, "Memory allocation error\n");
+        return NULL;
+    }
+
+    cl_int err;
+    err = clGetPlatformIDs(1, &new_context->platform, NULL);
+    if (err != CL_SUCCESS)
+    {
+        free_cl_context(new_context);
+        fprintf(stderr, "clGetPlatformIDs: %d\n", err);
+        return NULL;
+    }
+
+    err = clGetDeviceIDs(new_context->platform, CL_DEVICE_TYPE_GPU, 1, &new_context->device, NULL);
+    if (err != CL_SUCCESS)
+    {
+        free_cl_context(new_context);
+        fprintf(stderr, "clGetDeviceIDs: %d\n", err);
+        return NULL;
+    }
+
+    new_context->context = clCreateContext(NULL, 1, &new_context->device, NULL, NULL, &err);
+    if (err != CL_SUCCESS)
+    {
+        free_cl_context(new_context);
+        fprintf(stderr, "clCreateContext: %d\n", err);
+        return NULL;
+    }
+
+    new_context->queue = clCreateCommandQueue(new_context->context, new_context->device, 0, &err);
+    if (err != CL_SUCCESS)
+    {
+        free_cl_context(new_context);
+        fprintf(stderr, "clCreateCommandQueue: %d\n", err);
+        return NULL;
+    }
+    return new_context;
+}
+
+void free_cl_context(cl_context_t* ctx)
+{
+    if (!ctx)
+        return;
+    if (ctx->queue)
+        clReleaseCommandQueue(ctx->queue);
+    if (ctx->device)
+        clReleaseDevice(ctx->device);
+    if (ctx->context)
+        clReleaseContext(ctx->context);
+    free(ctx);
 }
