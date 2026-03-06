@@ -18,7 +18,6 @@
 
 int main(int argc, char *argv[])
 {
-
     std::filesystem::path input_name;
     std::filesystem::path output_name;
     int thresh_val;
@@ -61,13 +60,11 @@ int main(int argc, char *argv[])
     size_t gray2Size = h2 * w2;
     size_t gray3Size = h4 * w4;
 
-    unsigned char *d_original, *d_half, *d_quarter;
+    unsigned char *d_original;
     unsigned char *d_gray1, *d_gray2, *d_gray3;
     unsigned char *d_result;
 
-    CUDA_CHECK(cudaMalloc(&d_original, rgbSize));
-    CUDA_CHECK(cudaMalloc(&d_half, h2 * (w2 * 3))); 
-    CUDA_CHECK(cudaMalloc(&d_quarter, h4 * (w4 * 3))); 
+    CUDA_CHECK(cudaMalloc(&d_original, rgbSize)); 
     
     CUDA_CHECK(cudaMalloc(&d_gray1, gray1Size)); 
     CUDA_CHECK(cudaMalloc(&d_gray2, gray2Size));  
@@ -77,30 +74,21 @@ int main(int argc, char *argv[])
 
     CUDA_CHECK(cudaMemcpy(d_original, input_img.ptr(), rgbSize, cudaMemcpyHostToDevice));
 
-    auto start_resize1 = std::chrono::high_resolution_clock::now();
-    gpuResize(d_original, d_half, input_w, input_h, input_step, 3);
-    auto end_resize1 = std::chrono::high_resolution_clock::now();
-    auto duration_resize1 = std::chrono::duration_cast<std::chrono::microseconds>(end_resize1 - start_resize1);
-
-    auto start_resize2 = std::chrono::high_resolution_clock::now();
-    gpuResize(d_half, d_quarter, w2, h2, w2 * 3, 3);
-    auto end_resize2 = std::chrono::high_resolution_clock::now();
-    auto duration_resize2 = std::chrono::duration_cast<std::chrono::microseconds>(end_resize2 - start_resize2);
-
     auto start_gray1 = std::chrono::high_resolution_clock::now();
     gpuConvertBgrToGray(d_original, d_gray1, input_w, input_h, input_step);
     auto end_gray1 = std::chrono::high_resolution_clock::now();
     auto duration_gray1 = std::chrono::duration_cast<std::chrono::microseconds>(end_gray1 - start_gray1);
 
-    auto start_gray2 = std::chrono::high_resolution_clock::now();
-    gpuConvertBgrToGray(d_half, d_gray2, w2, h2, w2 * 3);
-    auto end_gray2 = std::chrono::high_resolution_clock::now();
-    auto duration_gray2 = std::chrono::duration_cast<std::chrono::microseconds>(end_gray2 - start_gray2);
+    auto start_resize1 = std::chrono::high_resolution_clock::now();
+    gpuResize(d_gray1, d_gray2, input_w, input_h, input_w, 1);
+    auto end_resize1 = std::chrono::high_resolution_clock::now();
+    auto duration_resize1 = std::chrono::duration_cast<std::chrono::microseconds>(end_resize1 - start_resize1);
 
-    auto start_gray3 = std::chrono::high_resolution_clock::now();
-    gpuConvertBgrToGray(d_quarter, d_gray3, w4, h4, w4 * 3);
-    auto end_gray3 = std::chrono::high_resolution_clock::now();
-    auto duration_gray3 = std::chrono::duration_cast<std::chrono::microseconds>(end_gray3 - start_gray3);
+    auto start_resize2 = std::chrono::high_resolution_clock::now();
+    gpuResize(d_gray2, d_gray3, w2, h2, w2, 1);  
+    auto end_resize2 = std::chrono::high_resolution_clock::now();
+    auto duration_resize2 = std::chrono::duration_cast<std::chrono::microseconds>(end_resize2 - start_resize2);
+
 
     auto start_fuse = std::chrono::high_resolution_clock::now();
     gpuFuseGrayscale(d_gray1, input_w, input_h, input_w,
@@ -114,8 +102,6 @@ int main(int argc, char *argv[])
     CUDA_CHECK(cudaMemcpy(out.ptr(), d_result, gray1Size, cudaMemcpyDeviceToHost));
 
     CUDA_CHECK(cudaFree(d_original));
-    CUDA_CHECK(cudaFree(d_half));
-    CUDA_CHECK(cudaFree(d_quarter));
     CUDA_CHECK(cudaFree(d_gray1));
     CUDA_CHECK(cudaFree(d_gray2));
     CUDA_CHECK(cudaFree(d_gray3));
@@ -131,11 +117,9 @@ int main(int argc, char *argv[])
 
     std::cout << "\nTimings:" << std::endl;
     std::cout << "\timage read:        " << duration_read.count() << " microseconds" << std::endl;
+    std::cout << "\tgrayscale full:    " << duration_gray1.count() << " microseconds" << std::endl;
     std::cout << "\tresize half:       " << duration_resize1.count() << " microseconds" << std::endl;
     std::cout << "\tresize quarter:    " << duration_resize2.count() << " microseconds" << std::endl;
-    std::cout << "\tgrayscale full:    " << duration_gray1.count() << " microseconds" << std::endl;
-    std::cout << "\tgrayscale half:    " << duration_gray2.count() << " microseconds" << std::endl;
-    std::cout << "\tgrayscale quarter: " << duration_gray3.count() << " microseconds" << std::endl;
     std::cout << "\tfuse grayscale:    " << duration_fuse.count() << " microseconds" << std::endl;
     std::cout << "\tsave image:        " << duration_write.count() << " microseconds" << std::endl;
     std::cout << "\t-----------------------------------------" << std::endl;
