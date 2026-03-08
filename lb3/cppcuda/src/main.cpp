@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
     int num_threads;
     if (argc < 2)
     {
-        printf("Usage: %s [INPUT_IMAGE_NAME] [THRESH_VAL] [NUM_THREADS] \nNote that input must be jpg or png\n", argv[0]);
+        printf("Usage: %s [INPUT_IMAGE_NAME] \nNote that input must be jpg or png\n", argv[0]);
         return 0;
     }
     else if (argc == 2)
@@ -40,19 +40,24 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    auto start_total = std::chrono::high_resolution_clock::now();
+
+    auto start_read = std::chrono::high_resolution_clock::now();
     cv::Mat input_img = cv::imread(input_name, cv::IMREAD_COLOR);
+    auto end_read = std::chrono::high_resolution_clock::now();
+    auto duration_read = std::chrono::duration_cast<std::chrono::microseconds>(end_read - start_read);
 
-     int srcW = input_img.cols;
-    int srcH = input_img.rows;
-    int srcStep = input_img.step;
+    int input_w = input_img.cols;
+    int input_h = input_img.rows;
+    int input_step = input_img.step;
 
-    std::cout << "Original size: " << srcW << "x" << srcH << std::endl;
+    std::cout << "Original size: " << input_w << "x" << input_h << std::endl;
 
-    int w2 = srcW / 2, h2 = srcH / 2;
-    int w4 = srcW / 4, h4 = srcH / 4;
+    int w2 = input_w / 2, h2 = input_h / 2;
+    int w4 = input_w / 4, h4 = input_h / 4;
 
-    size_t rgbSize = srcH * srcStep;
-    size_t gray1Size = srcH * srcW;
+    size_t rgbSize = input_h * input_step;
+    size_t gray1Size = input_h * input_w;
     size_t gray2Size = h2 * w2;
     size_t gray3Size = h4 * w4;
 
@@ -72,22 +77,40 @@ int main(int argc, char *argv[])
 
     CUDA_CHECK(cudaMemcpy(d_original, input_img.ptr(), rgbSize, cudaMemcpyHostToDevice));
 
-    std::cout << "Creating scaled copies on GPU..." << std::endl;
-    gpuResize(d_original, d_half, srcW, srcH, srcStep, w2, h2, w2 * 3, 3);
-    gpuResize(d_original, d_quarter, srcW, srcH, srcStep, w4, h4, w4 * 3, 3);
+    auto start_resize1 = std::chrono::high_resolution_clock::now();
+    gpuResize(d_original, d_half, input_w, input_h, input_step, 3);
+    auto end_resize1 = std::chrono::high_resolution_clock::now();
+    auto duration_resize1 = std::chrono::duration_cast<std::chrono::microseconds>(end_resize1 - start_resize1);
 
-    std::cout << "Converting to Grayscale on GPU..." << std::endl;
-    gpuConvertBgrToGray(d_original, d_gray1, srcW, srcH, srcStep);
+    auto start_resize2 = std::chrono::high_resolution_clock::now();
+    gpuResize(d_half, d_quarter, w2, h2, w2 * 3, 3);
+    auto end_resize2 = std::chrono::high_resolution_clock::now();
+    auto duration_resize2 = std::chrono::duration_cast<std::chrono::microseconds>(end_resize2 - start_resize2);
+
+    auto start_gray1 = std::chrono::high_resolution_clock::now();
+    gpuConvertBgrToGray(d_original, d_gray1, input_w, input_h, input_step);
+    auto end_gray1 = std::chrono::high_resolution_clock::now();
+    auto duration_gray1 = std::chrono::duration_cast<std::chrono::microseconds>(end_gray1 - start_gray1);
+
+    auto start_gray2 = std::chrono::high_resolution_clock::now();
     gpuConvertBgrToGray(d_half, d_gray2, w2, h2, w2 * 3);
-    gpuConvertBgrToGray(d_quarter, d_gray3, w4, h4, w4 * 3);
+    auto end_gray2 = std::chrono::high_resolution_clock::now();
+    auto duration_gray2 = std::chrono::duration_cast<std::chrono::microseconds>(end_gray2 - start_gray2);
 
-    std::cout << "Fusing multi-scale images on GPU..." << std::endl;
-    gpuFuseMultiScale(d_gray1, srcW, srcH, srcW,
+    auto start_gray3 = std::chrono::high_resolution_clock::now();
+    gpuConvertBgrToGray(d_quarter, d_gray3, w4, h4, w4 * 3);
+    auto end_gray3 = std::chrono::high_resolution_clock::now();
+    auto duration_gray3 = std::chrono::duration_cast<std::chrono::microseconds>(end_gray3 - start_gray3);
+
+    auto start_fuse = std::chrono::high_resolution_clock::now();
+    gpuFuseGrayscale(d_gray1, input_w, input_h, input_w,
                       d_gray2, w2, h2, w2,
                       d_gray3, w4, h4, w4,
-                      d_result, srcW, srcH, srcW);
+                      d_result);
+    auto end_fuse = std::chrono::high_resolution_clock::now();
+    auto duration_fuse = std::chrono::duration_cast<std::chrono::microseconds>(end_fuse - start_fuse);
 
-    cv::Mat out(srcH, srcW, CV_8UC1);
+    cv::Mat out(input_h, input_w, CV_8UC1);
     CUDA_CHECK(cudaMemcpy(out.ptr(), d_result, gray1Size, cudaMemcpyDeviceToHost));
 
     CUDA_CHECK(cudaFree(d_original));
@@ -98,7 +121,25 @@ int main(int argc, char *argv[])
     CUDA_CHECK(cudaFree(d_gray3));
     CUDA_CHECK(cudaFree(d_result));
 
+    auto start_write = std::chrono::high_resolution_clock::now();
     cv::imwrite("full" + (std::string)output_name, out);
+    auto end_write = std::chrono::high_resolution_clock::now();
+    auto duration_write = std::chrono::duration_cast<std::chrono::microseconds>(end_write - start_write);
+
+    auto end_total = std::chrono::high_resolution_clock::now();
+    auto duration_total = std::chrono::duration_cast<std::chrono::microseconds>(end_total - start_total);
+
+    std::cout << "\nTimings:" << std::endl;
+    std::cout << "\timage read:        " << duration_read.count() << " microseconds" << std::endl;
+    std::cout << "\tresize half:       " << duration_resize1.count() << " microseconds" << std::endl;
+    std::cout << "\tresize quarter:    " << duration_resize2.count() << " microseconds" << std::endl;
+    std::cout << "\tgrayscale full:    " << duration_gray1.count() << " microseconds" << std::endl;
+    std::cout << "\tgrayscale half:    " << duration_gray2.count() << " microseconds" << std::endl;
+    std::cout << "\tgrayscale quarter: " << duration_gray3.count() << " microseconds" << std::endl;
+    std::cout << "\tfuse grayscale:    " << duration_fuse.count() << " microseconds" << std::endl;
+    std::cout << "\tsave image:        " << duration_write.count() << " microseconds" << std::endl;
+    std::cout << "\t-----------------------------------------" << std::endl;
+    std::cout << "\ttotal time:        " << duration_total.count() << " microseconds" << std::endl;
 
     return 0;
 }
