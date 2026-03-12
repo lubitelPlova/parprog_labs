@@ -2,6 +2,7 @@
 import argparse
 from multiprocessing import Pool
 from worker import run_worker
+import time
 
 
 def parse_args():
@@ -24,6 +25,7 @@ def run_task(args):
 
 
 if __name__ == '__main__':
+    start_time = time.time()
 
     args = parse_args()
 
@@ -34,3 +36,6 @@ if __name__ == '__main__':
 
     with Pool(processes=len(TASKS), maxtasksperchild=1) as pool:
         results = pool.map(run_task, TASKS_WITH_ARGS)
+        
+    elapsed_time = time.time() - start_time
+    print(f"\nEnded!\n\tTime elapsed: {elapsed_time:.2f} sec")

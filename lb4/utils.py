@@ -30,14 +30,25 @@ def parse_movie_urls(url):
 
 
 def parse_movie_annotation(movie_url):
-    time.sleep(random.uniform(4, 13))
-    response = requests.get(movie_url, HEADERS)
-    # response.raise_for_status()
-    soup = BeautifulSoup(response.text, 'html.parser')
-    annotations = soup.find('p')
-    if not annotations:
-        print('ANNOTATION PARSE ERROR')
-    return (annotations.text if annotations else '')
+    max_retries = 5
+
+    for attempt in range(max_retries):
+        time.sleep(random.uniform(5+2*attempt, 13+2*attempt))
+
+        response = requests.get(movie_url, HEADERS)
+
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            annotations = soup.find('p')
+
+            if annotations:
+                return annotations.text.strip()
+            print(f'Annotation not found on page (try {attempt+1}/{max_retries})')
+            continue
+
+        print(f"Unawaited response code: {response.status_code} (try {attempt+1}/{max_retries})")
+
+    raise RuntimeError(f"Annotation parsing failed after {max_retries} tries: {movie_url}")
 
 
 def count_words(text, use_stem):

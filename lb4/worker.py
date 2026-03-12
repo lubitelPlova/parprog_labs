@@ -40,7 +40,7 @@ def run_worker(url, genre, use_stem, num_threads):
 
     for t in threads:
         t.join()
-    
+
     postfix = ''
     if use_stem:
         postfix = '_stemmed'
