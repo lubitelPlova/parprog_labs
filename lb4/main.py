@@ -1,6 +1,6 @@
 # main.py
 import argparse
-from multiprocessing import Pool, freeze_support
+from multiprocessing import Pool
 from worker import run_worker
 
 
@@ -24,7 +24,6 @@ def run_task(args):
 
 
 if __name__ == '__main__':
-    freeze_support()
 
     args = parse_args()
 

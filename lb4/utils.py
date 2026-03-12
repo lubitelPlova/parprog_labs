@@ -13,10 +13,10 @@ HEADERS = {'User-Agent': 'Mozilla/5.0'}
 
 
 def parse_movie_urls(url):
-    time.sleep(random.uniform(1, 3))  # Задержка 1-3 секунды перед запросом
+    time.sleep(random.uniform(5, 10))
 
     response = requests.get(url, headers=HEADERS)
-    response.raise_for_status()
+    # response.raise_for_status()
     soup = BeautifulSoup(response.text, 'html.parser')
 
     links = soup.select('a.link-holder_itemevent_small')
@@ -30,9 +30,9 @@ def parse_movie_urls(url):
 
 
 def parse_movie_annotation(movie_url):
-    time.sleep(random.uniform(1, 3))
+    time.sleep(random.uniform(4, 13))
     response = requests.get(movie_url, HEADERS)
-    response.raise_for_status()
+    # response.raise_for_status()
     soup = BeautifulSoup(response.text, 'html.parser')
     annotations = soup.find('p')
     if not annotations:

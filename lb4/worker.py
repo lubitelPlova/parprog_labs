@@ -40,8 +40,11 @@ def run_worker(url, genre, use_stem, num_threads):
 
     for t in threads:
         t.join()
-
-    with open(f'top_words_{genre}.txt', 'w', encoding='utf-8') as f:
+    
+    postfix = ''
+    if use_stem:
+        postfix = '_stemmed'
+    with open(f'top_words_{genre}{postfix}.txt', 'w', encoding='utf-8') as f:
         for word, count in common_counter.most_common(10):
             f.write(f'{word} : {count}\n')
 
